@@ -1,0 +1,60 @@
+max_epochs: 100
+lr0: 0.0001
+lrf: 0.01  # final lr = lr0 * lrf
+batch_size: 1
+num_workers: 4
+val_interval: 1
+
+
+dataset: aihelp  # aihelp
+num_classes: 1  # aihelp=1
+
+num_folds: 4
+fold_id: 0  # 01234
+use_val_data: False
+
+loss:
+  name: DiceLoss # MeanCCELoss
+  args:
+    smooth_nr: 0
+    smooth_dr: 1.0e-05
+    squared_pred: True
+    to_onehot_y: False
+    sigmoid: True
+
+#  name: DiceCELoss # MeanCCELoss
+#  args:
+#    smooth_nr: 0
+#    smooth_dr: 1e-5
+#    squared_pred: True
+#    to_onehot_y: False
+#    sigmoid: True
+#    ce_weight: [1.0, 1.0]
+#    lambda_dice: 1.0
+#    lambda_ce: 1.0
+
+
+optimizer:
+  name: Adam
+  args:
+    lr: 0.0001
+    weight_decay: 0.00001
+
+# lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max_epochs)
+scheduler:
+  name: CosineAnnealingLR
+  args:
+    T_max: 10  # match with max_epochs
+    eta_min: 1.0e-06  # match with lr * lrf
+
+# Model
+model :
+  name: SegResNet
+  args:
+    blocks_down: [1, 2, 2, 4]
+    blocks_up: [1, 1, 1]
+    init_filters: 16  # 32
+    in_channels: 1
+
+# pretrained: pretrained/segresnet.pt
+pretrained: None

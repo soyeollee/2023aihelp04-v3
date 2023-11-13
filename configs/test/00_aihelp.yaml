@@ -1,0 +1,21 @@
+batch_size: 1
+num_workers: 4
+
+dataset: aihelp  # aihelp
+num_classes: 1  # aihelp=1
+
+# Model
+model :
+  name: SegResNet
+  args:
+    blocks_down: [1, 2, 2, 4]
+    blocks_up: [1, 1, 1]
+    init_filters: 16
+    in_channels: 1
+
+roi_size: [240, 240, 160]
+
+pretrained:
+  - runs/train/00_aihelp/best_metric_model.pth
+  - runs/train/00_aihelp/best_metric_model.pth
+  - runs/train/00_aihelp/best_metric_model.pth

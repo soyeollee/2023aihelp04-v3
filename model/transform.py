@@ -58,5 +58,5 @@ class ConvertToForegroundBackground(MapTransform):
         for key in self.keys:
             # 모든 비-백그라운드 레이블은 전경으로 설정
             foreground = torch.where(d[key] > 0, torch.tensor(1, dtype=torch.float32), torch.tensor(0, dtype=torch.float32))
-            d[key] = foreground
+            d[key] = torch.stack([foreground], axis=0).float()
         return d

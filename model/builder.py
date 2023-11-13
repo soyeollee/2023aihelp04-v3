@@ -1,6 +1,7 @@
 import torch
 from monai.losses import DiceLoss, DiceCELoss
-from monai.networks.nets import SegResNet
+from monai.networks.nets import SegResNet, SwinUNETR
+from utils.common import load_state_dict_force
 
 
 def get_optimizer(model, optimizer_name, args):
@@ -32,12 +33,24 @@ def get_scheduler(optimizer, scheduler_name, args):
     return scheduler
 
 
-def get_model(name, num_classes, kwargs):
+def get_model(name, num_classes, kwargs, pretrained=None):
     if name == 'SegResNet':
         model = SegResNet(
             out_channels=num_classes,
             **kwargs
-        ).to('cuda')
+        )
 
-    return model
+    elif name == 'SwinUNETR':
+        model = SwinUNETR(
+            out_channels=num_classes,
+            **kwargs
+        )
+
+    if pretrained != 'None':
+        try:
+            model.load_state_dict(torch.load(pretrained))
+        except:
+            load_state_dict_force(model, pretrained)
+
+    return model.to('cuda')
 

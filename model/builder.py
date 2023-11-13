@@ -14,6 +14,8 @@ def get_optimizer(model, optimizer_name, args):
 
 
 def get_loss_function(loss_name, args):
+    if 'ce_weight' in list(args.keys()):
+        args['ce_weight'] = torch.tensor(args['ce_weight']).to('cuda')
     if loss_name == 'DiceLoss':
         loss_function = DiceLoss(**args)
     elif loss_name == 'DiceCELoss':

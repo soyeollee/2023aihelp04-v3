@@ -58,7 +58,7 @@ def parse_arguments():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--run', type=str, default='00_aihelp')
-    parser.add_argument('--train-config', type=str, default='00_aihelp')
+    parser.add_argument('--train-config', type=str, default='01_aihelp')
     parser.add_argument('--val-config', type=str, default='00_aihelp')
     parser.add_argument('--train-tf-config', type=str, default='01_aihelp')
     parser.add_argument('--val-tf-config', type=str, default='00_aihelp')

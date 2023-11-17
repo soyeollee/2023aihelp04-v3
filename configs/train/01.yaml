@@ -13,25 +13,26 @@ num_folds: 4
 fold_id: 0  # 01234
 use_val_data: False
 
-loss:
-  name: DiceLoss # MeanCCELoss
-  args:
-    smooth_nr: 0
-    smooth_dr: 1.0e-05
-    softmax: True
-    to_onehot_y: True  # multi class
-    # sigmoid: True
-
-#  name: DiceCELoss # MeanCCELoss
+#loss:
+#  name: DiceLoss # MeanCCELoss
 #  args:
 #    smooth_nr: 0
-#    smooth_dr: 1e-5
-#    squared_pred: True
-#    to_onehot_y: False
-#    sigmoid: True
-#    ce_weight: [1.0, 1.0]
-#    lambda_dice: 1.0
-#    lambda_ce: 1.0
+#    smooth_dr: 1.0e-05
+#    softmax: True
+#    to_onehot_y: True  # multi class
+#    # sigmoid: True
+
+loss:
+  name: DiceCELoss # MeanCCELoss
+  args:
+    smooth_nr: 0
+    smooth_dr: 1e-5
+    squared_pred: True
+    to_onehot_y: False
+    sigmoid: True
+    ce_weight: [1.0, 1.0]
+    lambda_dice: 1.0
+    lambda_ce: 1.0
 
 
 optimizer:

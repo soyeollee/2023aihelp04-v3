@@ -79,7 +79,6 @@ def trainval(
         lr_scheduler,
         data_dir,
         work_dir,
-        post_trans,
         visualize,
         train_config=None,
         val_org_transform=None,
@@ -166,9 +165,8 @@ def trainval(
                         val_data["label"].to(device),
                     )
                     val_outputs = inference(val_inputs)
-                    val_outputs = [post_trans(i) for i in decollate_batch(val_outputs)]
+                    val_outputs = [post_pred(i) for i in decollate_batch(val_outputs)]
 
-                    val_outputs = post_pred(val_outputs)
                     val_labels = post_label(val_labels)
 
                     dice_metric(y_pred=val_outputs, y=val_labels)
@@ -244,31 +242,15 @@ def trainval(
         num_classes=num_classes
     )
 
-    post_transforms_org = Compose(
-        [
-            Invertd(
-                keys="pred",
-                transform=val_org_transform,
-                orig_keys="image",
-                meta_keys="pred_meta_dict",
-                orig_meta_keys="image_meta_dict",
-                meta_key_postfix="meta_dict",
-                nearest_interp=False,
-                to_tensor=True,
-                device="cpu",
-            ),
-            Activationsd(keys="pred", sigmoid=True),
-            AsDiscreted(keys="pred", threshold=0.5),
-        ]
-    )
 
     # Evaluation on original image spacings
     with torch.no_grad():
         for val_data in val_org_loader[0]:
             val_inputs = val_data["image"].to(device)
             val_data["pred"] = inference(val_inputs)
-            val_data = [post_transforms_org(i) for i in decollate_batch(val_data)]
+            # val_data = [post_transforms_org(i) for i in decollate_batch(val_data)]
             val_outputs, val_labels = from_engine(["pred", "label"])(val_data)
+            val_outputs = [post_pred(i) for i in val_outputs]
             dice_metric(y_pred=val_outputs, y=val_labels)
             dice_metric_batch(y_pred=val_outputs, y=val_labels)
 
@@ -306,7 +288,6 @@ if __name__ == '__main__':
     train_transform = get_transform(args.train_tf_config, phase='train')
     val_transform = get_transform(args.val_tf_config, phase='val')
     val_origin_transform = get_transform(args.val_tf_config, phase='val', org=True)
-    post_trans = Compose([Activations(sigmoid=True), AsDiscrete(threshold=0.5)])
 
     # save config
     yaml.dump(train_config, open(os.path.join(work_dir, 'train_config.yaml'), 'w'))
@@ -360,7 +341,6 @@ if __name__ == '__main__':
                      lr_scheduler=lr_scheduler,
                      data_dir=data_dir,
                      work_dir=work_dir,
-                     post_trans=post_trans,
                      visualize=args.visualize,
                      train_config=train_config,
                      val_org_transform=val_origin_transform,

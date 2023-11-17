@@ -42,7 +42,7 @@ from monai.transforms import (
     EnsureChannelFirstd,
 )
 from monai.utils import set_determinism
-from configs import get_config, get_transform
+from configs import get_config, get_transform, post_pred, post_label
 
 import torch
 import argparse
@@ -57,8 +57,8 @@ from utils.common import get_logger, str2bool
 def parse_arguments():
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run', type=str, default='00_aihelp')
-    parser.add_argument('--train-config', type=str, default='01_aihelp')
+    parser.add_argument('--run', type=str, default='_test')
+    parser.add_argument('--train-config', type=str, default='00_aihelp')
     parser.add_argument('--val-config', type=str, default='00_aihelp')
     parser.add_argument('--train-tf-config', type=str, default='01_aihelp')
     parser.add_argument('--val-tf-config', type=str, default='00_aihelp')
@@ -167,6 +167,10 @@ def trainval(
                     )
                     val_outputs = inference(val_inputs)
                     val_outputs = [post_trans(i) for i in decollate_batch(val_outputs)]
+
+                    val_outputs = post_pred(val_outputs)
+                    val_labels = post_label(val_labels)
+
                     dice_metric(y_pred=val_outputs, y=val_labels)
                     dice_metric_batch(y_pred=val_outputs, y=val_labels)
 
@@ -232,11 +236,11 @@ def trainval(
     model.eval()
 
     # visualize best model
-    model = visualize_best_model(
+    visualize_best_model(
         model=model,
         work_dir=work_dir,
         val_loader=val_loader,
-        post_trans=Compose([Activations(sigmoid=True), AsDiscrete(threshold=0.5)]),
+        post_trans=post_pred,
         num_classes=num_classes
     )
 
@@ -275,14 +279,14 @@ def trainval(
         dice_metric_batch.reset()
 
     logger.info(f"Metric on original image spacing: {metric_org}")
-    metric_org = round(metric_org, 5)
-
-    with open(os.path.join(work_dir, f'metric_{str(metric_org)}.txt'), 'w') as f:
-        pass
+    # metric_org = round(metric_org, 5)
 
     for cls in range(len(metric_batch_org)):
         _metric = metric_batch_org[cls].item()
         logger.info(f"metric_cls{cls}: {_metric:.4f}")
+        if cls == 1:
+            with open(os.path.join(work_dir, f'metric_{str(_metric)}.txt'), 'w') as f:
+                pass
 
     return model  # best model
 

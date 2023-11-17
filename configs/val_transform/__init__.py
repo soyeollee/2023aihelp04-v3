@@ -16,4 +16,5 @@ from monai.transforms import (
     Spacingd,
     EnsureTyped,
     EnsureChannelFirstd,
+    EnsureType
 )

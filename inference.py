@@ -60,7 +60,7 @@ from monai.engines import EnsembleEvaluator, SupervisedEvaluator, SupervisedTrai
 from monai.handlers import MeanDice, StatsHandler, ValidationHandler, from_engine
 import copy
 import numpy as np
-
+from configs import post_pred, post_label
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
@@ -136,6 +136,7 @@ def inference(models, dataloader, test_config, work_dir, post_transform, visuali
             metric_org = round(metric_org, 5)
             with open(os.path.join(work_dir, f'metric_{str(metric_org)}.txt'), 'w') as f:
                 pass
+
 
 if __name__ == '__main__':
     args = parse_arguments()

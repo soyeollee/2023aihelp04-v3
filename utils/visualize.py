@@ -69,6 +69,8 @@ def visualize_train_result(
 
 
 def visualize_best_model(model, work_dir, val_loader, post_trans, num_classes):
+    num_classes -= 1
+
     device = torch.device("cuda")
     model.load_state_dict(torch.load(os.path.join(work_dir, "best_metric_model.pth")))
     model.eval()
@@ -114,7 +116,7 @@ def visualize_best_model(model, work_dir, val_loader, post_trans, num_classes):
             plt.savefig(os.path.join(work_dir, 'input1_image.png'))
             # visualize the 3 channels label corresponding to this image
             plt.figure("label", (6 * num_classes, 6))
-            for i in range(num_classes):
+            for i in range(num_classes-1):
                 plt.subplot(1, num_classes, i + 1)
                 plt.title(f"label channel {i}")
                 plt.imshow(val_label[0, i, :, :, max_channel].detach().cpu())
@@ -127,4 +129,3 @@ def visualize_best_model(model, work_dir, val_loader, post_trans, num_classes):
                 plt.imshow(val_output[i, :, :, max_channel].detach().cpu())
             plt.savefig(os.path.join(work_dir, 'input1_pred.png'))
             break
-    return model

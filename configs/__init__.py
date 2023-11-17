@@ -4,6 +4,9 @@ import importlib
 from types import SimpleNamespace
 from configs.val_transform import *
 
+post_pred = Compose([EnsureType("tensor", device="cpu"), AsDiscrete(argmax=True, to_onehot=2)])
+post_label = Compose([EnsureType("tensor", device="cpu"), AsDiscrete(to_onehot=2)])
+
 def get_config(config, phase='train'):
     config_path = os.path.join('./configs', phase, config + '.yaml')
     with open(config_path) as f:

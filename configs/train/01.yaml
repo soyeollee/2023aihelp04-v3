@@ -27,9 +27,8 @@ loss:
   args:
     smooth_nr: 0
     smooth_dr: 1e-5
-    squared_pred: True
-    to_onehot_y: False
-    sigmoid: True
+    to_onehot_y: True
+    softmax: True
     ce_weight: [1.0, 1.0]
     lambda_dice: 1.0
     lambda_ce: 1.0
@@ -58,4 +57,4 @@ model :
     in_channels: 1
 
 # pretrained: pretrained/segresnet.pt
-pretrained: None
+pretrained: runs/train/00/best_metric_model.pth

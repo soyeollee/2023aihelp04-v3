@@ -52,7 +52,7 @@ from monai.inferers import SimpleInferer, SlidingWindowInferer
 import argparse
 from utils.common import str2bool
 from model.builder import get_model
-from configs import get_config, get_transform
+from configs import get_config, get_transform, post_pred, post_label
 from data import get_dataset
 import nibabel as nib
 from tqdm import tqdm
@@ -60,15 +60,20 @@ from monai.engines import EnsembleEvaluator, SupervisedEvaluator, SupervisedTrai
 from monai.handlers import MeanDice, StatsHandler, ValidationHandler, from_engine
 import copy
 import numpy as np
-from configs import post_pred, post_label
+from monai.transforms.utils import allow_missing_keys_mode
+
+
+
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run', type=str, default='00_aihelp')
-    parser.add_argument('--test-config', type=str, default='00_aihelp')
-    parser.add_argument('--test-tf-config', type=str, default='00_aihelp')
+    parser.add_argument('--run', type=str, default='00')
+    parser.add_argument('--test-config', type=str, default='00')
+    parser.add_argument('--test-tf-config', type=str, default='00')
+    parser.add_argument('--val-tf-config', type=str, default='00')
+
     parser.add_argument('--data-dir', type=str, default='/home/soyeollee/workspace/data/aihelp/ImageData')
-    parser.add_argument('--validation', type=str2bool, default=True)
+    parser.add_argument('--validation', type=str2bool, default=False)
     parser.add_argument('--visualize', type=str2bool, default=True)
     return parser.parse_args()
 
@@ -87,49 +92,74 @@ def _inference(_input, _model, _roi_size):
         return _compute(_input)
 
 
-def inference(models, dataloader, test_config, work_dir, post_transform, visualize, data_dir, validation):
+def inference(models, dataloader, test_config, work_dir, invertd_transform, visualize, data_dir, validation):
     os.makedirs(os.path.join(work_dir, 'results'), exist_ok=True)
+    os.makedirs(os.path.join(work_dir, 'visualize'), exist_ok=True)
 
     [model.eval() for model in models]
-
-    dice_metric = DiceMetric(include_background=True, reduction="mean")
+    _model = models[0]
+    dice_metric = DiceMetric(include_background=False, reduction="mean")
 
     with torch.no_grad():
         for val_data in tqdm(dataloader):
-            output_list = []
-            for _model in models:
-                _val_data = copy.deepcopy(val_data)
-                val_inputs = _val_data["image"].to('cuda')
-                _val_data["pred"] = _inference(val_inputs, _model, test_config.roi_size)
-                _val_data = [post_transform(i) for i in decollate_batch(_val_data)]
-                if validation:
-                    val_outputs, val_labels = from_engine(["pred", "label"])(_val_data)
-                else:
-                    val_outputs = from_engine(["pred"])(_val_data)
+            _val_data = copy.deepcopy(val_data)
+            _val_inputs = _val_data["image"].to('cuda')
+            _val_data['pred'] = _inference(_val_inputs, _model, test_config.roi_size)
+            _val_invertd_data = [invertd_transform(i) for i in decollate_batch(_val_data)]
 
-                # write batch result to nii.gz file
-                for i in range(len(val_outputs)):
-                    _file_path = _val_data[i]['path'].split('/')[-3]
-                    save_path = os.path.join(work_dir, 'results', _file_path + '.nii.gz')
-                    # save to nii.gz
-                    _output = val_outputs[0].cpu().numpy().squeeze()  # h, w, c
-                    # _output = nib.Nifti1Image(_output, affine=_affine)
-                    # nib.save(_output, save_path)
-                    output_list.append(_output)
+            # write batch result to nii.gz file
+            _file_path = _val_data['path'][0].split('/')[-3]
+            save_path = os.path.join(work_dir, 'results', _file_path + '.nii.gz')
 
             _affine = val_data['image'][0].affine.cpu().numpy()
-            _output = (np.array(output_list).sum(axis=0) > (len(output_list) / 2)).astype(float)
 
             if validation:
-                dice_metric([torch.tensor(np.expand_dims(_output, axis=0)), ], val_labels[0].unsqueeze(0))
+                _val_pred = _val_data['pred'][0].cpu()  # c, h, w
+                _val_pred = post_pred(_val_pred)
+                _val_labels = copy.deepcopy(val_data['label'])
+                _val_labels = post_label(_val_labels[0]).cpu()
+                dice_metric([_val_pred], [_val_labels])
 
-            _output = nib.Nifti1Image(_output, affine=_affine)
-            nib.save(_output, save_path)
+            _output = post_pred(_val_invertd_data[0]['pred']).argmax(0).cpu().numpy().astype(float)
+            _output_nii = nib.Nifti1Image(_output, affine=_affine)
+            nib.save(_output_nii, save_path)
 
             if visualize:
+                if validation:
+                    label_sum = (_val_labels != 0)[1].sum(dim=(0, 1))
+                    if label_sum.sum().item() == 0:
+                        continue
+                    max_channel = label_sum.argmax().item()
+                else:
+                    max_channel = (_output != 0).sum((0, 1)).argmax().item()
+
                 image = nib.load(os.path.join(data_dir, _file_path, 'T1_space', 'T1_FOV.nii.gz')).get_fdata()
-                image = _val_data[i]['image'].cpu().numpy().squeeze()
-                pass
+
+                # visualize image
+                plt.figure("image", (6*1, 6))
+                plt.subplot(1, 1, 1)
+                plt.title(f"image channel 1")
+                plt.imshow(image[:, :, max_channel], cmap="gray")
+                plt.savefig(os.path.join(work_dir, 'visualize', _file_path + '_image.png'))
+
+                # visualize pred
+                plt.figure("pred", (6*1, 6))
+                plt.subplot(1, 1, 1)
+                plt.title(f"pred channel 1")
+                plt.imshow(_output[:, :, max_channel], cmap="gray")
+                plt.savefig(os.path.join(work_dir, 'visualize', _file_path + '_pred.png'))
+
+                if validation:
+                    label = nib.load(os.path.join(data_dir, _file_path, 'T1_space', 'ROI.nii.gz')).get_fdata()
+
+                    # visualize label
+                    plt.figure("label", (6*1, 6))
+                    plt.subplot(1, 1, 1)
+                    plt.title(f"label channel 1")
+                    plt.imshow(label[:, :, max_channel], cmap="gray")
+                    plt.savefig(os.path.join(work_dir, 'visualize', _file_path + '_label.png'))
+
+
 
         if validation:
             metric_org = dice_metric.aggregate().item()
@@ -149,10 +179,10 @@ if __name__ == '__main__':
                       pretrained=_pretrained) for _pretrained in test_config.pretrained]
 
     if args.validation:
-        test_transform, post_transform = get_transform(args.test_tf_config, phase='val', org=True, return_post=True)
+        test_transform, invertd_transform = get_transform(args.val_tf_config, phase='val', org=True, return_post=True)
         os.makedirs(os.path.join(work_dir, 'visualize'), exist_ok=True)
     else:
-        test_transform, post_transform = get_transform(args.test_tf_config, phase='test', org=True, return_post=True)
+        test_transform, invertd_transform = get_transform(args.test_tf_config, phase='test', org=True, return_post=True)
 
     if args.validation:
         dataloader = get_dataset(dataset=test_config.dataset,
@@ -179,5 +209,5 @@ if __name__ == '__main__':
                                  visualize=False,
                                  phases=['test'])
 
-    inference(models, dataloader[0], test_config, work_dir, post_transform, args.visualize, args.data_dir,
+    inference(models, dataloader[0], test_config, work_dir, invertd_transform, args.visualize, args.data_dir,
               args.validation)

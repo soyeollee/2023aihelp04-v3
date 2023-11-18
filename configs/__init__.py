@@ -23,26 +23,26 @@ def get_transform(config, phase='train', org=False, test_threshold=0.5, return_p
     else:
         transform = module.transform
 
-    post_transforms = Compose(
-        [
-            Invertd(
-                keys="pred",
-                transform=transform,
-                orig_keys="image",
-                meta_keys="pred_meta_dict",
-                orig_meta_keys="image_meta_dict",
-                meta_key_postfix="meta_dict",
-                nearest_interp=False,
-                to_tensor=True,
-                device="cpu",
-                allow_missing_keys=True
-            ),
-            Activationsd(keys="pred", sigmoid=True),
-            AsDiscreted(keys="pred", threshold=test_threshold),
-        ]
-    )
 
     if return_post:
+        keys = "pred"
+
+        post_transforms = Compose(
+            [
+                Invertd(
+                    keys=keys,
+                    transform=transform,
+                    orig_keys="image",
+                    meta_keys="pred_meta_dict",
+                    orig_meta_keys="image_meta_dict",
+                    meta_key_postfix="meta_dict",
+                    nearest_interp=False,
+                    to_tensor=True,
+                    device="cpu",
+                    allow_missing_keys=True
+                )
+            ]
+        )
         return transform, post_transforms
     else:
         return transform

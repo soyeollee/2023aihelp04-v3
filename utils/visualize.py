@@ -3,6 +3,7 @@ import os
 import torch
 import matplotlib.pyplot as plt
 from monai.inferers import sliding_window_inference
+from monai.data import DataLoader, decollate_batch
 
 pallet = ['red', 'green', 'blue', 'yellow', 'purple', 'brown', 'pink', 'orange', 'cyan', 'magenta', 'lime', 'teal', 'lavender', 'maroon', 'navy', 'olive', 'grey', 'black', 'white']
 
@@ -39,7 +40,7 @@ def visualize_train_result(
         metric_values,
         val_interval,
         metric_values_all,
-        work_dir
+        work_dir,
     ):
     num_classes = len(metric_values_all)
     plt.figure("train_mean_loss", (12, 6))
@@ -69,8 +70,6 @@ def visualize_train_result(
 
 
 def visualize_best_model(model, work_dir, val_loader, post_trans, num_classes):
-    num_classes -= 1
-
     device = torch.device("cuda")
     model.load_state_dict(torch.load(os.path.join(work_dir, "best_metric_model.pth")))
     model.eval()
@@ -103,10 +102,9 @@ def visualize_best_model(model, work_dir, val_loader, post_trans, num_classes):
 
             # select one image to evaluate and visualize the model output
             # val_input = val_input.unsqueeze(0).to(device)
-            roi_size = (128, 128, 64)
-            sw_batch_size = 4
+
             val_output = inference(val_input).to(device)
-            val_output = post_trans(val_output[0])
+            val_output = [post_trans(i) for i in decollate_batch(val_output)]
             plt.figure("image", (6*input_channel, 6))
 
             for i in range(input_channel):
@@ -115,17 +113,17 @@ def visualize_best_model(model, work_dir, val_loader, post_trans, num_classes):
                 plt.imshow(val_input[0, i, :, :, max_channel].detach().cpu(), cmap="gray")
             plt.savefig(os.path.join(work_dir, 'input1_image.png'))
             # visualize the 3 channels label corresponding to this image
-            plt.figure("label", (6 * num_classes, 6))
+            plt.figure("label", (6 * num_classes-1, 6))
             for i in range(num_classes-1):
-                plt.subplot(1, num_classes, i + 1)
+                plt.subplot(1, num_classes-1, i + 1)
                 plt.title(f"label channel {i}")
                 plt.imshow(val_label[0, i, :, :, max_channel].detach().cpu())
             plt.savefig(os.path.join(work_dir, 'input1_label.png'))
             # visualize the 3 channels model output corresponding to this image
-            plt.figure("output", (6 * num_classes, 6))
-            for i in range(num_classes):
-                plt.subplot(1, num_classes, i + 1)
-                plt.title(f"output channel {i}")
-                plt.imshow(val_output[i, :, :, max_channel].detach().cpu())
+            plt.figure("output", (6 * num_classes-1, 6))
+            plt.subplot(1, 1, 1)
+            plt.title(f"output channel 1")
+            plt.imshow(val_output[0][1, :, :, max_channel].detach().cpu())
             plt.savefig(os.path.join(work_dir, 'input1_pred.png'))
+
             break

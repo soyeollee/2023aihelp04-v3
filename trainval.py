@@ -57,11 +57,11 @@ from utils.common import get_logger, str2bool
 def parse_arguments():
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run', type=str, default='_test')
-    parser.add_argument('--train-config', type=str, default='00_aihelp')
-    parser.add_argument('--val-config', type=str, default='00_aihelp')
-    parser.add_argument('--train-tf-config', type=str, default='01_aihelp')
-    parser.add_argument('--val-tf-config', type=str, default='00_aihelp')
+    parser.add_argument('--run', type=str, default='_test01')
+    parser.add_argument('--train-config', type=str, default='01')
+    parser.add_argument('--val-config', type=str, default='00')
+    parser.add_argument('--train-tf-config', type=str, default='00')
+    parser.add_argument('--val-tf-config', type=str, default='00')
 
     parser.add_argument('--data-dir', type=str,
                         default='/home/soyeollee/workspace/data/aihelp/ImageData')
@@ -102,8 +102,8 @@ def trainval(
     val_interval = train_config.val_interval
     num_classes = train_config.num_classes
 
-    dice_metric = DiceMetric(include_background=True, reduction="mean")
-    dice_metric_batch = DiceMetric(include_background=True, reduction="mean_batch")
+    dice_metric = DiceMetric(include_background=False, reduction="mean")
+    dice_metric_batch = DiceMetric(include_background=False, reduction="mean_batch")
 
     # use amp to accelerate training
     scaler = torch.cuda.amp.GradScaler()
@@ -165,17 +165,17 @@ def trainval(
                         val_data["label"].to(device),
                     )
                     val_outputs = inference(val_inputs)
-                    val_outputs = [post_pred(i) for i in decollate_batch(val_outputs)]
-
-                    val_labels = post_label(val_labels)
+                    val_outputs = [post_pred(i) for i in decollate_batch(val_outputs)]  # list [2 240 240 155]
+                    val_labels = [post_label(i) for i in decollate_batch(val_labels)]  # list [2 240 240 155]
 
                     dice_metric(y_pred=val_outputs, y=val_labels)
                     dice_metric_batch(y_pred=val_outputs, y=val_labels)
+                    pass
 
                 metric = dice_metric.aggregate().item()
                 metric_values.append(metric)
                 metric_batch = dice_metric_batch.aggregate()
-                for i in range(num_classes):
+                for i in range(num_classes-1):
                     _metric = metric_batch[i].item()
                     metric_values_all[i].append(_metric)
                 dice_metric.reset()
@@ -193,7 +193,7 @@ def trainval(
                     )
                     logger.info("saved new best metric model")
 
-                metric_line = [f"#cls{i}: {metric_batch[i].item()}" for i in range(num_classes)]
+                metric_line = [f"#cls{i}: {metric_batch[i].item()}" for i in range(num_classes-1)]
                 metric_line = ' '.join(metric_line)
                 logger.info(
                     f"current epoch: {epoch + 1} current mean dice: {metric:.4f}"
@@ -247,10 +247,11 @@ def trainval(
     with torch.no_grad():
         for val_data in val_org_loader[0]:
             val_inputs = val_data["image"].to(device)
-            val_data["pred"] = inference(val_inputs)
+            val_labels = val_data["label"].to(device)
             # val_data = [post_transforms_org(i) for i in decollate_batch(val_data)]
-            val_outputs, val_labels = from_engine(["pred", "label"])(val_data)
-            val_outputs = [post_pred(i) for i in val_outputs]
+            val_outputs = inference(val_inputs)
+            val_outputs = [post_pred(i) for i in decollate_batch(val_outputs)]  # list [2 240 240 155]
+            val_labels = [post_label(i) for i in decollate_batch(val_labels)]  # list [2 240 240 155]
             dice_metric(y_pred=val_outputs, y=val_labels)
             dice_metric_batch(y_pred=val_outputs, y=val_labels)
 
@@ -266,10 +267,8 @@ def trainval(
     for cls in range(len(metric_batch_org)):
         _metric = metric_batch_org[cls].item()
         logger.info(f"metric_cls{cls}: {_metric:.4f}")
-        if cls == 1:
-            with open(os.path.join(work_dir, f'metric_{str(_metric)}.txt'), 'w') as f:
-                pass
-
+        with open(os.path.join(work_dir, f'metric_{str(_metric)}.txt'), 'w') as f:
+            pass
     return model  # best model
 
 

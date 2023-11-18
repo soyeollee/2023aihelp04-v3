@@ -2,7 +2,7 @@ batch_size: 1
 num_workers: 4
 
 dataset: aihelp  # aihelp
-num_classes: 1  # aihelp=1
+num_classes: 2  # aihelp=1
 
 # Model
 model :
@@ -16,6 +16,4 @@ model :
 roi_size: [240, 240, 160]
 
 pretrained:
-  - runs/train/00_aihelp/best_metric_model.pth
-  - runs/train/00_aihelp/best_metric_model.pth
-  - runs/train/00_aihelp/best_metric_model.pth
+  - runs/train/00/best_metric_model.pth
